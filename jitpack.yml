@@ -3,4 +3,4 @@ jdk:
 
 install:
   - ./gradlew :library:assembleRelease
-  - ./gradlew :library:publishToMavenLocal
+  - ./gradlew :library:publishReleasePublicationToMavenLocal
