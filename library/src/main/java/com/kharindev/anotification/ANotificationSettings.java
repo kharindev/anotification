@@ -1,4 +1,4 @@
-package com.kharin.anotification;
+package com.kharindev.anotification;
 
 import android.content.Context;
 

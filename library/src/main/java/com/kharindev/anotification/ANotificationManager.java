@@ -1,4 +1,4 @@
-package com.kharin.anotification;
+package com.kharindev.anotification;
 
 
 import android.Manifest;
@@ -21,7 +21,7 @@ import androidx.work.OneTimeWorkRequest;
 
 import androidx.work.WorkManager;
 
-import com.kharin.anotification.work.NotificationWorker;
+import com.kharindev.anotification.work.NotificationWorker;
 
 import java.util.concurrent.TimeUnit;
 

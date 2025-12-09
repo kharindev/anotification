@@ -1,6 +1,4 @@
-package com.kharin.anotification;
-
-import com.erow.dungeon.R;
+package com.kharindev.anotification;
 
 public class ANotification {
 
@@ -29,11 +27,6 @@ public class ANotification {
 
     public ANotification withIcon(int icon) {
         this.icon = icon;
-        return this;
-    }
-
-    public ANotification withDefaultIcon() {
-        this.icon = R.drawable.notification;
         return this;
     }
 
