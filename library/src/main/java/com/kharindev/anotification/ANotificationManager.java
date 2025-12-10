@@ -3,6 +3,7 @@ package com.kharindev.anotification;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.AlarmManager;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -16,15 +17,8 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
-import androidx.work.Data;
-import androidx.work.ExistingWorkPolicy;
-import androidx.work.OneTimeWorkRequest;
-
 import androidx.work.WorkManager;
-
-import com.kharindev.anotification.work.NotificationWorker;
-
-import java.util.concurrent.TimeUnit;
+import com.kharindev.anotification.receiver.ANotificationReceiver;
 
 public class ANotificationManager {
 
@@ -75,40 +69,58 @@ public class ANotificationManager {
     }
 
     public void scheduledNotification(Context context, ANotification notification) {
-
-        ANotificationLog.d("Scheduling: " + notification.toString());
+        ANotificationLog.d("Scheduling (AlarmManager): " + notification);
 
         if (!hasPermission(context)) {
-            ANotificationLog.d("No permission → skip");
+            ANotificationLog.d("No permission → skip scheduling");
             return;
         }
 
-        long delay = notification.hours * 3600000L
-            + notification.minutes * 60000L
-            + notification.seconds * 1000L;
+        long delayMs =
+                notification.hours * 3600000L +
+                        notification.minutes * 60000L +
+                        notification.seconds * 1000L;
 
-        Data data = new Data.Builder()
-            .putString(TITLE_KEY, notification.title)
-            .putString(MESSAGE_KEY, notification.message)
-            .putString(CHANNEL_ID_KEY, channelId)
-            .putInt(REQUEST_CODE_KEY, notification.id)
-            .putInt(SMALL_ICON_INT_KEY, notification.icon)
-            .putString(OPEN_PARAMETER_KEY, notification.openParameter)
-            .putString(CLASS_KEY, context.getClass().getName())
-            .build();
+        if (delayMs < 0) delayMs = 0;
 
-        OneTimeWorkRequest request =
-            new OneTimeWorkRequest.Builder(NotificationWorker.class)
-                .setInitialDelay(delay, TimeUnit.MILLISECONDS)
-                .setInputData(data)
-                .build();
+        long triggerAt = System.currentTimeMillis() + delayMs;
+        ANotificationLog.d("Delay = " + delayMs + " ms, triggerAt = " + triggerAt);
 
-        WorkManager.getInstance(context).enqueueUniqueWork(
-            "notify_" + notification.id,
-            ExistingWorkPolicy.REPLACE,
-            request
+        Intent intent = new Intent(context, ANotificationReceiver.class);
+        intent.putExtra(TITLE_KEY, notification.title);
+        intent.putExtra(MESSAGE_KEY, notification.message);
+        intent.putExtra(CHANNEL_ID_KEY, channelId);
+        intent.putExtra(REQUEST_CODE_KEY, notification.id);
+        intent.putExtra(SMALL_ICON_INT_KEY, notification.icon);
+        intent.putExtra(OPEN_PARAMETER_KEY, notification.openParameter);
+        intent.putExtra(CLASS_KEY, context.getClass().getName());
+
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            flags |= PendingIntent.FLAG_IMMUTABLE;
+        }
+
+        PendingIntent pi = PendingIntent.getBroadcast(
+                context,
+                notification.id,
+                intent,
+                flags
         );
-        ANotificationLog.d("Enqueued unique work notify_" + notification.id);
+
+        AlarmManager alarm = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        if (alarm == null) {
+            ANotificationLog.d("AlarmManager is null → cannot schedule");
+            return;
+        }
+
+        // Современный, точный вариант с Doze
+        alarm.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                triggerAt,
+                pi
+        );
+
+        ANotificationLog.d("Alarm scheduled (id=" + notification.id + ")");
     }
 
     public void cancelNotification(Context context, ANotification notification) {
