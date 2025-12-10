@@ -38,6 +38,9 @@ public class ANotificationManager {
     private String channelId;
 
     public void createChannel(Context context, String channelId, String channelName, String description) {
+
+        ANotificationLog.d("Creating channel: " + channelId);
+
         this.channelId = channelId;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
@@ -51,18 +54,19 @@ public class ANotificationManager {
 
             NotificationManager nm = context.getSystemService(NotificationManager.class);
             nm.createNotificationChannel(channel);
+
+            ANotificationLog.d("Channel created");
         }
     }
 
     public boolean hasPermission(Context context) {
-        if (!needPermission()) {
-            return true;
-        }
+        boolean need = needPermission();
+        boolean granted = !need || ContextCompat.checkSelfPermission(
+                context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
 
-        return ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.POST_NOTIFICATIONS
-        ) == PackageManager.PERMISSION_GRANTED;
+        ANotificationLog.d("hasPermission(): need=" + need + ", granted=" + granted);
+
+        return granted;
     }
 
     @ChecksSdkIntAtLeast(api = Build.VERSION_CODES.TIRAMISU)
@@ -71,7 +75,11 @@ public class ANotificationManager {
     }
 
     public void scheduledNotification(Context context, ANotification notification) {
+
+        ANotificationLog.d("Scheduling: " + notification.toString());
+
         if (!hasPermission(context)) {
+            ANotificationLog.d("No permission → skip");
             return;
         }
 
@@ -100,6 +108,7 @@ public class ANotificationManager {
             ExistingWorkPolicy.REPLACE,
             request
         );
+        ANotificationLog.d("Enqueued unique work notify_" + notification.id);
     }
 
     public void cancelNotification(Context context, ANotification notification) {
@@ -107,8 +116,10 @@ public class ANotificationManager {
     }
 
     public void cancelNotification(Context context, int code) {
+        ANotificationLog.d("Cancel notification: " + code);
         WorkManager.getInstance(context).cancelUniqueWork("notify_" + code);
         NotificationManagerCompat.from(context).cancel(code);
+        ANotificationLog.d("Cancelled");
     }
 
     public static void showNotificationStatic(ANotificationSettings settings) {
@@ -118,8 +129,11 @@ public class ANotificationManager {
             : settings.context.getPackageManager()
             .getLaunchIntentForPackage(settings.context.getPackageName());
 
-        if (intent == null)
+        if (intent == null) {
+            ANotificationLog.d("Intent null → return");
             return;
+        }
+
 
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
         intent.putExtra(OPEN_PARAMETER_KEY, settings.openParameter);
@@ -151,31 +165,72 @@ public class ANotificationManager {
             NotificationManagerCompat.from(settings.context)
                 .notify(settings.code, builder.build());
         }
+
+        ANotificationLog.d("Notification sent (code=" + settings.code + ")");
     }
 
     public String getOpenParameter(Activity activity) {
-        if (activity == null) return "nothing";
+        ANotificationLog.d("getOpenParameter() called");
 
-        String parameter = GetParameter(activity.getIntent(), OPEN_PARAMETER_KEY);
-        return (parameter != null) ? parameter : "nothing";
+        if (activity == null) {
+            ANotificationLog.d("getOpenParameter(): activity == null → return 'nothing'");
+            return "nothing";
+        }
+
+        Intent intent = activity.getIntent();
+        ANotificationLog.d("getOpenParameter(): Intent = " + intent);
+
+        String parameter = GetParameter(intent, OPEN_PARAMETER_KEY);
+
+        ANotificationLog.d("getOpenParameter(): result = " + parameter);
+        return parameter;
     }
 
     public static String GetParameter(Intent intent, String key) {
-        return (intent != null && intent.hasExtra(key))
-            ? intent.getStringExtra(key)
-            : "nothing";
+        if (intent == null) {
+            ANotificationLog.d("GetParameter(): intent == null → return 'nothing'");
+            return "nothing";
+        }
+
+        if (!intent.hasExtra(key)) {
+            ANotificationLog.d("GetParameter(): no extra '" + key + "' → return 'nothing'");
+            return "nothing";
+        }
+
+        String value = intent.getStringExtra(key);
+        ANotificationLog.d("GetParameter(): '" + key + "' = " + value);
+
+        return value != null ? value : "nothing";
     }
 
     public void requestPermission(Activity activity) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (activity.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED) {
 
-                activity.requestPermissions(
+        ANotificationLog.d("requestPermission() called");
+
+        if (activity == null) {
+            ANotificationLog.d("requestPermission(): activity == null → skip");
+            return;
+        }
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            ANotificationLog.d("requestPermission(): API < 33 → permission not required");
+            return;
+        }
+
+        int state = activity.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS);
+        boolean granted = state == PackageManager.PERMISSION_GRANTED;
+
+        ANotificationLog.d("requestPermission(): granted=" + granted);
+
+        if (!granted) {
+            ANotificationLog.d("requestPermission(): requesting POST_NOTIFICATIONS");
+            activity.requestPermissions(
                     new String[]{Manifest.permission.POST_NOTIFICATIONS},
                     1000
-                );
-            }
+            );
+        } else {
+            ANotificationLog.d("requestPermission(): already granted → nothing to do");
         }
     }
+
 }
