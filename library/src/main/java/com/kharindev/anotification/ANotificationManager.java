@@ -17,7 +17,6 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
-import androidx.work.WorkManager;
 import com.kharindev.anotification.receiver.ANotificationReceiver;
 
 public class ANotificationManager {
@@ -114,7 +113,7 @@ public class ANotificationManager {
         }
 
         // Современный, точный вариант с Doze
-        alarm.setExactAndAllowWhileIdle(
+        alarm.setAndAllowWhileIdle(
                 AlarmManager.RTC_WAKEUP,
                 triggerAt,
                 pi
@@ -129,10 +128,32 @@ public class ANotificationManager {
 
     public void cancelNotification(Context context, int code) {
         ANotificationLog.d("Cancel notification: " + code);
-        WorkManager.getInstance(context).cancelUniqueWork("notify_" + code);
+
+        Intent intent = new Intent(context, ANotificationReceiver.class);
+
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+            flags |= PendingIntent.FLAG_IMMUTABLE;
+
+        PendingIntent pi = PendingIntent.getBroadcast(
+                context,
+                code,
+                intent,
+                flags
+        );
+
+        AlarmManager alarm = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        if (alarm != null) {
+            alarm.cancel(pi);
+            ANotificationLog.d("Alarm cancelled");
+        }
+
         NotificationManagerCompat.from(context).cancel(code);
-        ANotificationLog.d("Cancelled");
+        ANotificationLog.d("Notification cancelled");
+
+        pi.cancel();
     }
+
 
     public static void showNotificationStatic(ANotificationSettings settings) {
 
